@@ -1,273 +1,1161 @@
 openapi: 3.0.0
-servers:
-  - url: "http://localhost:3000"
 info:
-  title: Fantastic Coffee (decaffeinated)
-  description: Fantastic Coffee (decaffeinated), the skeleton project for Web and Software architecture course
+  title: WASA Photo
+  x-summary: The api that allows to use WASA Photo backend
+  description: |-
+    This API allows using WASA Photo with a variety of
+    functionalities like image upload, user profile photos,
+    stream and information etc.
   version: 1.0.0
-paths:
-  /status:
-    parameters:
-      - $ref: "#/components/parameters/XAppBuild"
-      - $ref: "#/components/parameters/XAppVersion"
-      - $ref: "#/components/parameters/XAppLanguage"
-      - $ref: "#/components/parameters/XAppPlatform"
-    get:
-      tags: ["General"]
-      operationId: getStatusMessage
-      summary: Get status message for the user about issues / updates
+tags:
+  - name: Login
+  - name: Manage Photos
+  - name: Likes
+  - name: Comments
+  - name: Users Lookup
+  - name: Manage Users
+  - name: Content Lookup
+  - name: Follows
+  - name: User bans
+servers:
+  - url: '{protocol}://{host}:{port}'
+    description: Applcation server, use this parameters for local development and production
+    x-sandbox: true
+    variables:
+      protocol:
+        enum:
+          - http
+          - https
+        default: http
+      host:
+        default: localhost
+        description: Application server's host
+      port:
+        enum:
+          - '3000'
+          - '443'
+          - '80'
+        default: '3000'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: accessToken
+      description: >-
+        Enter the token with the `Bearer: ` prefix, e.g. "Bearer abcde12345".
+  responses:
+    LoginSucceeded:
+      description: User log-in action successful
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AuthenticationToken"
+    UnauthorizedError:
+      description: Access token is missing or invalid
+    BadRequest:
       description: |-
-        The response contains a status message meant for the user. It might
-        contains information about current technical issues, update messages
-        or general information.
+        The request was not compliant with the documentation
+        (eg. missing fields, etc).
+    InternalServerError:
+      description: |-
+        The server encountered an internal error.
+        Further info in server logs.
+  parameters:
+    PhotoID:
+      schema:
+        description: Unique identifier of a Photo
+        type: integer
+        format: int32
+        readOnly: true
+      name: photoId
+      in: path
+      required: true
+      description: Unique identifier of a Photo
+      example: 1234
+    CommentID:
+      schema:
+        description: Unique identifier of a Photo comment
+        type: integer
+        format: int32
+        readOnly: true
+      name: commentId
+      in: path
+      required: true
+      description: Unique identifier of a Photo comment
+      example: 1234
+    UserID:
+      schema:
+        description: Unique identifier of a user
+        type: integer
+        format: int32
+        readOnly: true
+      name: userId
+      in: path
+      required: true
+      description: Unique identifier of a user
+      example: 1234
+  schemas:
+    AuthenticationToken:
+      description: Token identifier for a logged in user
+      type: object
+      properties:
+        identifier:
+          type: string
+          description: Token identifier for a logged in user
+          example: "abcdef012345"
+    UserID:
+      description: Unique identifier of a user
+      type: integer
+      format: int32
+      readOnly: true
+    BaseUser:
+      description: Provides basic information about someone with a WASA Photo account.
+      type: object
+      required:
+        - id
+        - username
+      properties:
+        id:
+          $ref: "#/components/schemas/UserID"
+        username:
+          type: string
+          description: User name
+          pattern: '^.*?$'
+          example: Mario
+          minLength: 3
+          maxLength: 16
+    User:
+      allOf:
+        - $ref: "#/components/schemas/BaseUser"
+        - description: Provides extended information about someone with a WASA Photo account, like total photos count etc.
+          type: object
+          properties:
+            bannedForUser:
+              type: boolean
+              description: Either if a user is banned or not for the logged-in user
+              example: false
+            totalPhotos:
+              type: integer
+              description: Total photos count
+              format: int32
+              example: 20
+            totalFollowers:
+              type: integer
+              description: Total followers count
+              format: int32
+              example: 10
+            totalFollowings:
+              type: integer
+              description: Total followings count
+              format: int32
+              example: 10
+    PhotoID:
+      description: Unique identifier of a Photo
+      type: integer
+      format: int32
+      readOnly: true
+    BasePhoto:
+      description: Provides basic information about a photo
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/PhotoID"
+      readOnly: true
+    Photo:
+      description: A photo published by a user
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/PhotoID"
+        url:
+          description: Image URL
+          type: string
+          example: "https://http.cat/200"
+        totalLikes:
+          description: Image likes number
+          type: integer
+          format: int32
+          example: 20
+        totalComments:
+          description: Image comments number
+          type: integer
+          format: int32
+          example: 5
+        uploadDate:
+          description: Image upload date
+          type: string
+          format: date-time
+          example: "2022-07-21T17:32:28Z"
+        owner:
+          $ref: "#/components/schemas/BaseUser"
+    PaginatedPhotos:
+      description: A list of paginated photo entries
+      type: object
+      properties:
+        entries:
+          type: array
+          description: |-
+            The page of items for this page. This will be an empty array if there are no results.
+          items:
+            $ref: "#/components/schemas/Photo"
+          minItems: 0
+          maxItems: 100
+        offset:
+          type: integer
+          format: int32
+          description: |-
+            The offset used for this page of results
+          example: 1234
+        limit:
+          type: integer
+          format: int32
+          description: |-
+            The limit used for this page of results. This will be the same as the `limit` query parameter unless it exceeded the maximum value allowed for this API endpoint.
+          minimum: 1
+          maximum: 100
+          example: 10
+        totalCount:
+          type: integer
+          format: int32
+          description: |-
+            One greater than the `offset` of the last item in the entire collection. The total number of items in the collection may be less than `totalCount`
+          example: 120
+    Like:
+      properties:
+        id:
+          description: Unique identifier of a Photo like
+          type: integer
+          format: int32
+          readOnly: true
+        date:
+          description: Like date
+          type: string
+          format: date-time
+          example: "2022-07-21T17:32:28Z"
+        photo:
+          $ref: "#/components/schemas/BasePhoto"
+        owner:
+          $ref: "#/components/schemas/BaseUser"
+    CommentID:
+      description: Unique identifier of a Photo comment
+      type: integer
+      format: int32
+      readOnly: true
+    Comment:
+      description: A comment to a photo published by a user
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/CommentID"
+        date:
+          description: Like date
+          type: string
+          format: date-time
+          minLength: 8
+          maxLength: 255
+          example: "2022-07-21T17:32:28Z"
+          readOnly: true
+        content:
+          description: Comment's content
+          type: string
+          pattern: .*
+          example: This is my comment
+          minLength: 1
+          maxLength: 500
+        photo:
+          $ref: "#/components/schemas/BasePhoto"
+        owner:
+          allOf:
+            - $ref: "#/components/schemas/BaseUser"
+            - readOnly: true
+  links:
+    DeletePhoto:
+      operationId: deletePhoto
+      parameters:
+        photoId: $response.body#id
+      description: |-
+        The `id` value returned in the response can be used as the `photoId` parameter in `DELETE /photos/{photoId}`
+    GetPhotoLikes:
+      operationId: getPhotoLikes
+      parameters:
+        photoId: $response.body#id
+      description: |-
+        The `id` value returned in the response can be used as the `photoId` parameter in `GET /photos/{photoId}/likes` to get the likes belonging to that photo
+    GetPhotoComments:
+      operationId: getPhotoComments
+      parameters:
+        photoId: $response.body#id
+      description: |-
+        The `id` value returned in the response can be used as the `photoId` parameter in `GET /photos/{photoId}/comments` to get the comments belonging to that photo
+    AddLikeToPhoto:
+      operationId: likePhoto
+      parameters:
+        photoId: $response.body#id
+      description: |-
+        The `id` value returned in the response can be used as the `photoId` parameter in `PUT /photos/{photoId}/likes/me` to put a like to that photo
+    PublishCommentToPhoto:
+      operationId: commentPhoto
+      parameters:
+        photoId: $response.body#id
+      description: |-
+        The `id` value returned in the response can be used as the `photoId` parameter in `POST /photos/{photoId}/comments` to publish a comment to that photo
+    DeleteCommentFromPhoto:
+      operationId: uncommentPhoto
+      parameters:
+        photoId: $response.body#photo.id
+        commentId: $response.body#id
+      description: |-
+        The `photo.id` and the `id` value returned in the response can be used as
+          the `photoId` and the `commentId` parameter in `DELETE /photos/{photoId}/comments/{commentId}` to delete a comment
+    GetUserById:
+      operationId: getUserProfile
+      parameters:
+        userId: $response.body#id
+      description: |-
+        The `id` value returned in the response can be used as the `userId` parameter in `GET /users/{userId}` to get complete information about a user
+    FollowUser:
+      operationId: followUser
+      parameters:
+        userId: $response.body#id
+      description: |-
+        The `id` value returned in the response can be used as the `userId` parameter in `PUT /users/me/followings/{targetUserId}` to follow the target user
+    UnfollowUser:
+      operationId: unfollowUser
+      parameters:
+        userId: $response.body#id
+      description: |-
+        The `id` value returned in the response can be used as the `userId` parameter in `PUT /users/me/followings/{targetUserId}` to unfollow the target user
+    BanUser:
+      operationId: banUser
+      parameters:
+        userId: $response.body#id
+      description: |-
+        The `id` value returned in the response can be used as the `userId` parameter in `PUT /users/me/bans/{targetUserId}` to ban the target user
+    UnbanUser:
+      operationId: unbanUser
+      parameters:
+        userId: $response.body#id
+      description: |-
+        The `id` value returned in the response can be used as the `userId` parameter in `PUT /users/me/bans/{targetUserId}` to unban the target user
+    GetUserPhotos:
+      operationId: getUserProfile
+      parameters:
+        userId: $response.body#id
+      description: |-
+        The `id` value returned in the response can be used as the `userId` parameter in `GET /users/{userId}` to get complete information about a user
+    GetUserFollowers:
+      operationId: getUserFollowers
+      parameters:
+        userId: $response.body#id
+      description: |-
+        The `id` value returned in the response can be used as the `userId` parameter in `GET /users/{userId}` to get complete information about a user
+    GetUserFollowings:
+      operationId: getUserFollowings
+      parameters:
+        userId: $response.body#id
+      description: |-
+        The `id` value returned in the response can be used as the `userId` parameter in `GET /users/{userId}` to get complete information about a user
+security:
+  - bearerAuth: []
+paths:
+  /session:
+    post:
+      tags: ["Login"]
+      summary: Logs in the user
+      description: |-
+        If the user does not exist, it will be created,
+        and an identifier is returned.
+        If the user exists, the user identifier is returned.
+      operationId: doLogin
+      security: []
+      requestBody:
+        description: User details
+        content:
+          application/json:
+            schema:
+              description: Name of the user
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: User name
+                  example: Maria
+                  pattern: '^.*?$'
+                  minLength: 3
+                  maxLength: 16
+        required: true
       responses:
-        "200":
-          description: Status message available
+        '200':
+          $ref: "#/components/responses/LoginSucceeded"
+        '201':
+          $ref: "#/components/responses/LoginSucceeded"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+  /photos:
+    post:
+      tags: ["Manage Photos"]
+      operationId: uploadPhoto
+      summary: Publish a photo
+      description: Publish a photo on behalf of an authenticated user
+      responses:
+        "201":
+          description: Photo published correctly
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/StatusInfo"
-        "400": { $ref: "#/components/responses/BadRequest" }
-        "500": { $ref: "#/components/responses/InternalServerError" }
-
-  /:
-    get:
-      tags: ["Group 1"]
-      operationId: index
-      summary: Get an index
-      description: |-
-        This is an example of an index API description
-      responses:
-        "200":
-          description: Successful
-        "400": { $ref: "#/components/responses/BadRequest" }
-        "500": { $ref: "#/components/responses/InternalServerError" }
-  /context:
-    parameters:
-      - $ref: "#/components/parameters/XAppBuild"
-      - $ref: "#/components/parameters/XAppVersion"
-      - $ref: "#/components/parameters/XAppLanguage"
-      - $ref: "#/components/parameters/XAppPlatform"
-    post:
-      tags: ["Group 1"]
-      operationId: getContext
-      summary: Another API example
-      description: |-
-        Example description 2
-      responses:
-        "200":
-          description: Request ok
-          headers:
-            X-Access-Token:
-              description: Access token for authenticated requests
-              schema: { type: string }
-        "500": { $ref: "#/components/responses/InternalServerError" }
-  /authenticated:
-    parameters:
-      - $ref: "#/components/parameters/XAppBuild"
-      - $ref: "#/components/parameters/XAppVersion"
-      - $ref: "#/components/parameters/XAppLanguage"
-      - $ref: "#/components/parameters/XAppPlatform"
-    get:
-      tags: ["Group 2"]
-      operationId: getAuthenticatedExample
-      summary: Get an endpoint with authentication
-      description: |-
-        Get an endpoint with auth
-      security:
-        - LegacyAuth: []
-        - AppToken: []
-      responses:
-        "200":
-          description: Logout successful
-        "500": { $ref: "#/components/responses/InternalServerError" }
-
-  /pictures/{cat}:
-    parameters:
-      - $ref: "#/components/parameters/XAppBuild"
-      - $ref: "#/components/parameters/XAppVersion"
-      - $ref: "#/components/parameters/XAppLanguage"
-      - $ref: "#/components/parameters/XAppPlatform"
-      - $ref: "#/components/parameters/cat"
-    get:
-      tags: ["Cat pictures"]
-      operationId: getCatFromPicture
-      summary: Example of a parameter in URL
-      description: |-
-        Example of a parameter in URL
-      security:
-        - LegacyAuth: []
-      responses:
-        "200":
-          description: Student picture found
-          content:
-            image/png:
-              schema:
-                type: string
-                format: binary
-              example: Picture binary file
-        "404":
-          description: Student picture not found
-        "500": { $ref: "#/components/responses/InternalServerError" }
-
-
-  /autofeeder/{cat}:
-    parameters:
-      - $ref: "#/components/parameters/XAppBuild"
-      - $ref: "#/components/parameters/XAppVersion"
-      - $ref: "#/components/parameters/XAppLanguage"
-      - $ref: "#/components/parameters/XAppPlatform"
-      - $ref: "#/components/parameters/cat"
-    put:
-      tags: ["Autofeeder"]
-      operationId: createCatAutofeeder
-      summary: Example of PUT operation
-      security:
-        - LegacyAuth: []
-      responses:
-        "200":
-          description: Auto feed enabled
-        "400": { $ref: "#/components/responses/BadRequest" }
-        "500": { $ref: "#/components/responses/InternalServerError" }
-    delete:
-      tags: ["Autofeeder"]
-      operationId: deleteCatAutofeeder
-      summary: Example of DELETE operation
-      security:
-        - LegacyAuth: []
-      responses:
-        "200":
-          description: Auto feed disabled
-        "400": { $ref: "#/components/responses/BadRequest" }
-        "500": { $ref: "#/components/responses/InternalServerError" }
-
-  /session/login:
-    parameters:
-      - $ref: "#/components/parameters/XAppBuild"
-      - $ref: "#/components/parameters/XAppVersion"
-      - $ref: "#/components/parameters/XAppLanguage"
-      - $ref: "#/components/parameters/XAppPlatform"
-    post:
-      tags: ["Session management"]
-      operationId: login
-      summary: Log-in into system
-      description: |-
-        Perform a log-in action using username and password credentials.
-        Returns a token which can be used in authenticated requests.
+                $ref: "#/components/schemas/Photo"
+              example:
+                id: 1234
+                url: "https://http.cat/200"
+                totalLikes: 0
+                totalComments: 0
+                uploadDate: "2022-12-21T17:32:28Z"
+                owner:
+                  id: 1234
+                  username: "Mario"
+          links:
+            deletePhoto:
+              $ref: "#/components/links/DeletePhoto"
+            getPhotoLikes:
+              $ref: "#/components/links/GetPhotoLikes"
+            getPhotoComments:
+              $ref: "#/components/links/GetPhotoComments"
+            addLikeToPhoto:
+              $ref: "#/components/links/AddLikeToPhoto"
+            publishCommentToPhoto:
+              $ref: "#/components/links/PublishCommentToPhoto"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
       requestBody:
         content:
-          application/x-www-form-urlencoded:
+          image/jpeg:
             schema:
-              type: object
-              properties:
-                userid:
-                  type: string
-                  pattern: '^[a-zA-Z0-9]+$'
-                  minLength: 3
-                  maxLength: 255
-                password:
-                  type: string
-                  pattern: '^.*?$'
-                  minLength: 8
-                  maxLength: 255
+              description: Binary data of an image
+              type: string
+              format: binary
+              minLength: 1
+              maxLength: 9999999999
+          image/png:
+            schema:
+              description: Binary data of an image
+              type: string
+              format: binary
+              minLength: 1
+              maxLength: 9999999999
+  /photos/{photoId}:
+    parameters:
+      - $ref: "#/components/parameters/PhotoID"
+    delete:
+      tags: ["Manage Photos"]
+      operationId: deletePhoto
+      summary: Delete a photo
+      description: Delete a photo resource and all its likes and comments
+      responses:
+        "204":
+          description: Photo deleted
+        "404":
+          description: Photo not found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /photos/{photoId}/likes:
+    parameters:
+      - $ref: "#/components/parameters/PhotoID"
+    get:
+      tags: ["Likes"]
+      operationId: getPhotoLikes
+      summary: Get the likes of a photo
+      description: Returns a list of "like" resources beloging to the photo specified by Id
       responses:
         "200":
-          description: Login successful
-          headers:
-            X-Access-Token:
-              description: Access token for authenticated requests
-              schema: { type: string }
-        "400": { $ref: "#/components/responses/BadRequest" }
-        "403":
-          description: Login failed
-          headers:
-            X-Message:
-              description: Error message
-              schema: { type: string }
-        "500": { $ref: "#/components/responses/InternalServerError" }
-
-
-components:
-  schemas:
-    StatusInfo:
-      title: Status Info
-      type: object
-      properties:
-        status:
-          type: string
-          enum:
-            - info
-            - warning
-            - critical
-            - ""
-        title: { type: string }
-        message: { type: string }
-        url: { type: string }
-
-  responses:
-    Unauthorized:
-      description: The access token is missing or it's expired
-    BadRequest:
-      description: The request was not compliant with the documentation (eg. missing fields, etc)
-    InternalServerError:
-      description: The server encountered an internal error. Further info in server logs
-
-  securitySchemes:
-    LegacyAuth:
-      type: apiKey
-      in: header
-      name: X-App-Token
+          description: Photo likes list
+          content:
+            application/json:
+              schema:
+                description: Photo likes list
+                type: array
+                items:
+                  $ref: "#/components/schemas/Like"
+                example:
+                  - photo:
+                      id: 1234
+                    owner:
+                      id: 1234
+                      username: Mario
+                  - photo:
+                      id: 1234
+                    owner:
+                      id: 1235
+                      username: Luigi
+                minItems: 0
+                maxItems: 99999
+          links:
+            RemoveLikeToPhoto:
+              operationId: unlikePhoto
+              parameters:
+                photoId: $response.body[0]#photo.id
+              description: |-
+                The `photo.id` value returned in the response can be used as the `photoId` parameter in `DELETE /photos/{photoId}/likes/me` to remove a like to that photo
+        "404":
+          description: Photo not found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /photos/{photoId}/likes/me:
+    parameters:
+      - $ref: "#/components/parameters/PhotoID"
+    put:
+      tags: ["Likes"]
+      operationId: likePhoto
+      summary: Put a like to a photo
+      description: Creates a "like" resource in the "photo" resource for the specified user
+      responses:
+        "204":
+          description: User liked a photo
+        "404":
+          description: Photo not found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    delete:
+      tags: ["Likes"]
+      operationId: unlikePhoto
+      summary: Remove a like to a photo
+      description: Removes a "like" resource in the "photo" resource for the specified user
+      responses:
+        "204":
+          description: User unliked a photo
+        "404":
+          description: Photo not found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /photos/{photoId}/comments:
+    parameters:
+      - $ref: "#/components/parameters/PhotoID"
+    get:
+      tags: ["Comments"]
+      operationId: getPhotoComments
+      summary: Get the comments of a photo
+      description: Returns a list of "comment" resources beloging to the photo specified by Id
+      responses:
+        "200":
+          description: Photo comments
+          content:
+            application/json:
+              schema:
+                description: Photo comments
+                type: array
+                items:
+                  $ref: "#/components/schemas/Comment"
+                example:
+                  - id: 1234
+                    content: A comment
+                    photo:
+                      id: 1234
+                    owner:
+                      id: 4567
+                      username: Mario
+                  - id: 1235
+                    content: Another comment
+                    photo:
+                      id: 1234
+                    owner:
+                      id: 4568
+                      username: Luigi
+                minItems: 0
+                maxItems: 99999
+          links:
+            deleteCommentFromPhoto:
+              $ref: "#/components/links/DeleteCommentFromPhoto"
+        "404":
+          description: Photo not found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    post:
+      tags: ["Comments"]
+      operationId: commentPhoto
+      summary: Comment a photo
+      description: Creates a "comment" resource in the "photo" resource for the specified user
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Comment"
+      responses:
+        "201":
+          description: Comment created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Comment"
+          links:
+            deleteCommentFromPhoto:
+              $ref: "#/components/links/DeleteCommentFromPhoto"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /photos/{photoId}/comments/{commentId}:
+    parameters:
+      - $ref: '#/components/parameters/PhotoID'
+      - $ref: '#/components/parameters/CommentID'
+    delete:
+      tags: ["Comments"]
+      operationId: uncommentPhoto
+      summary: Remove a comment from a photo
+      description: Removes a "comment" resource in the "photo" resource for the specified user
+      responses:
+        "204":
+          description: User removed a comment from a photo
+        "404":
+          description: Photo or comment not found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /users:
+    get:
+      tags: ["Users Lookup"]
+      operationId: getUsers
+      summary: Get users list
       description: |-
-        App session token value. This value is sent by the server in the login
-        and session refresh APIs.
-
-  parameters:
-    XAppVersion:
-      schema:
-        type: string
-        pattern: '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$'
-        minLength: 1
-        maxLength: 10
-      name: X-App-Version
-      in: header
-      required: true
-      description: App human readable version ("semantic version" format)
-      allowEmptyValue: false
-    XAppBuild:
-      schema: { type: integer }
-      name: X-App-Build
-      in: header
-      required: true
-      description: App build number
-      allowEmptyValue: false
-    XAppLanguage:
-      schema:
-        type: string
-        pattern: '^[a-z]{2}([-_][A-Z]{2})?$'
-        minLength: 2
-        maxLength: 5
-      name: X-App-Language
-      in: header
-      required: true
-      description: App language in ISO 639-1 format
-      allowEmptyValue: false
-    XAppPlatform:
-      schema:
-        type: string
-        enum: [ios, android]
-      name: X-App-Platform
-      in: header
-      required: true
-      description: App operating system / platform
-      allowEmptyValue: false
-    cat:
-      schema:
-        type: string
-        pattern: '^[a-zA-Z]+$'
-        minLength: 3
-        maxLength: 10
-      name: cat
-      in: path
-      required: true
-      description: Cat
-      allowEmptyValue: false
+        Get a list of WASA Photo users
+      parameters:
+        - in: query
+          name: username
+          schema:
+            description: Query param with searched username value
+            type: string
+            pattern: '^.*?$'
+            example: Mario
+            minLength: 3
+            maxLength: 16
+          description: The username to filter users against
+      responses:
+        "200":
+          description: List of user resources
+          content:
+            application/json:
+              schema:
+                description: List of user resources
+                type: array
+                items:
+                  $ref: "#/components/schemas/BaseUser"
+                minItems: 0
+                maxItems: 99999
+          links:
+            getUserById:
+              $ref: "#/components/links/GetUserById"
+            followUser:
+              $ref: "#/components/links/FollowUser"
+            unfollowUser:
+              $ref: "#/components/links/UnfollowUser"
+            banUser:
+              $ref: "#/components/links/BanUser"
+            unbanUser:
+              $ref: "#/components/links/UnbanUser"
+            getUserPhotos:
+              $ref: "#/components/links/GetUserPhotos"
+            getUserFollowers:
+              $ref: "#/components/links/GetUserFollowers"
+            getUserFollowings:
+              $ref: "#/components/links/GetUserFollowings"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /users/me:
+    # get:
+    #   tags: ["Users Lookup"]
+    #   operationId: getMyUserProfile
+    #   summary: Get the current user
+    #   description: |-
+    #     The resource for the user shows the user id and the username
+    #   responses:
+    #     "200":
+    #       description: A user resource
+    #       content:
+    #         application/json:
+    #           schema:
+    #             $ref: "#/components/schemas/User"
+    #       links:
+    #         getUserPhotos:
+    #           $ref: "#/components/links/GetUserPhotos"
+    #         getUserFollowers:
+    #           $ref: "#/components/links/GetUserFollowers"
+    #         getUserFollowings:
+    #           $ref: "#/components/links/GetUserFollowings"
+    #     "500":
+    #       $ref: "#/components/responses/InternalServerError"
+    #     '401':
+    #       $ref: '#/components/responses/UnauthorizedError'
+    patch:
+      tags: ["Manage Users"]
+      operationId: setMyUserName
+      summary: Update current username
+      description: |-
+        Send a new user username that will replace the current one for the user
+      requestBody:
+        content:
+          application/json-patch+json:
+            schema:
+              description: A patch object containing a replace entry for the username
+              type: array
+              items:
+                type: object
+                properties:
+                  op:
+                    type: string
+                    description: Patch operation type
+                    enum: ["replace"]
+                    example: replace
+                    pattern: '^.*?$'
+                    minLength: 7
+                    maxLength: 7
+                  path:
+                    type: string
+                    description: Field to patch
+                    enum: ["/username"]
+                    example: /username
+                    pattern: '^.*?$'
+                    minLength: 9
+                    maxLength: 9
+                  value:
+                    type: string
+                    description: New field valued
+                    example: Luigi
+                    pattern: '^.*?$'
+                    minLength: 3
+                    maxLength: 16
+              minItems: 1
+              maxItems: 1
+              uniqueItems: true
+        required: true
+      responses:
+        "200":
+          description: Username updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /users/{userId}:
+    parameters:
+      - $ref: "#/components/parameters/UserID"
+    get:
+      tags: ["Users Lookup"]
+      operationId: getUserProfile
+      summary: Get a user
+      description: |-
+        The resource for the user shows the user id and the username
+      responses:
+        "200":
+          description: A user resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+          links:
+            getUserPhotos:
+              $ref: "#/components/links/GetUserPhotos"
+            getUserFollowers:
+              $ref: "#/components/links/GetUserFollowers"
+            getUserFollowings:
+              $ref: "#/components/links/GetUserFollowings"
+            followUser:
+              $ref: "#/components/links/FollowUser"
+            unfollowUser:
+              $ref: "#/components/links/UnfollowUser"
+            banUser:
+              $ref: "#/components/links/BanUser"
+            unbanUser:
+              $ref: "#/components/links/UnbanUser"
+        "404":
+          description: User not found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /users/{userId}/stream:
+    parameters:
+      - $ref: "#/components/parameters/UserID"
+    get:
+      tags: ["Content Lookup"]
+      operationId: getMyStream
+      summary: Gets the current user's main photo stream
+      description: |-
+        The stream is composed by photos from “following” (other users that the user follows).
+      parameters:
+        - in: query
+          name: offset
+          schema:
+            description: The number of items to skip before starting to collect the result set
+            type: integer
+            format: int32
+          description: The number of items to skip before starting to collect the result set
+        - in: query
+          name: limit
+          schema:
+            description: The numbers of items to return
+            type: integer
+            format: int32
+          description: The numbers of items to return
+      responses:
+        "200":
+          description: A paginated list of photos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedPhotos"
+          links:
+            deletePhoto:
+              $ref: "#/components/links/DeletePhoto"
+            getPhotoLikes:
+              $ref: "#/components/links/GetPhotoLikes"
+            getPhotoComments:
+              $ref: "#/components/links/GetPhotoComments"
+            addLikeToPhoto:
+              $ref: "#/components/links/AddLikeToPhoto"
+            publishCommentToPhoto:
+              $ref: "#/components/links/PublishCommentToPhoto"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  # /users/me/photos:
+  #   get:
+  #     tags: ["Content Lookup"]
+  #     operationId: getMyPhotos
+  #     summary: Get current user's photos
+  #     description: Get a list of "photos" resources belonging to the current user
+  #     parameters:
+  #       - in: query
+  #         name: offset
+  #         schema:
+  #           description: The number of items to skip before starting to collect the result set
+  #           type: integer
+  #           format: int32
+  #         description: The number of items to skip before starting to collect the result set
+  #       - in: query
+  #         name: limit
+  #         schema:
+  #           description: The numbers of items to return
+  #           type: integer
+  #           format: int32
+  #         description: The numbers of items to return
+  #     responses:
+  #       "200":
+  #         description: A paginated list of photos
+  #         content:
+  #           application/json:
+  #             schema:
+  #               $ref: "#/components/schemas/PaginatedPhotos"
+  #         links:
+  #           deletePhoto:
+  #             $ref: "#/components/links/DeletePhoto"
+  #           getPhotoLikes:
+  #             $ref: "#/components/links/GetPhotoLikes"
+  #           getPhotoComments:
+  #             $ref: "#/components/links/GetPhotoComments"
+  #           addLikeToPhoto:
+  #             $ref: "#/components/links/AddLikeToPhoto"
+  #           publishCommentToPhoto:
+  #             $ref: "#/components/links/PublishCommentToPhoto"
+  #       "400":
+  #         $ref: "#/components/responses/BadRequest"
+  #       "500":
+  #         $ref: "#/components/responses/InternalServerError"
+  #       '401':
+  #         $ref: '#/components/responses/UnauthorizedError'
+  /users/{userId}/photos:
+    parameters:
+      - $ref: "#/components/parameters/UserID"
+    get:
+      tags: ["Content Lookup"]
+      operationId: getPhotos
+      summary: Get user photos
+      description: Get a list of "photos" resources belonging to a user
+      parameters:
+        - in: query
+          name: offset
+          schema:
+            description: The number of items to skip before starting to collect the result set
+            type: integer
+            format: int32
+          description: The number of items to skip before starting to collect the result set
+        - in: query
+          name: limit
+          schema:
+            description: The numbers of items to return
+            type: integer
+            format: int32
+          description: The numbers of items to return
+      responses:
+        "200":
+          description: A paginated list of photos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedPhotos"
+          links:
+            getPhotoLikes:
+              $ref: "#/components/links/GetPhotoLikes"
+            getPhotoComments:
+              $ref: "#/components/links/GetPhotoComments"
+            addLikeToPhoto:
+              $ref: "#/components/links/AddLikeToPhoto"
+            publishCommentToPhoto:
+              $ref: "#/components/links/PublishCommentToPhoto"
+        "404":
+          description: User not found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  # /users/me/followers:
+  #   get:
+  #     tags: ["Follows"]
+  #     operationId: getMyUserFollowers
+  #     summary: Get current user followers
+  #     description: Return a list of users that are following the current user
+  #     responses:
+  #       "200":
+  #         description: A list of user resources
+  #         content:
+  #           application/json:
+  #             schema:
+  #               description: A list of user resources
+  #               type: array
+  #               items:
+  #                 $ref: "#/components/schemas/BaseUser"
+  #               minItems: 0
+  #               maxItems: 99999
+  #         links:
+  #           getUserById:
+  #             $ref: "#/components/links/GetUserById"
+  #           unfollowUser:
+  #             $ref: "#/components/links/UnfollowUser"
+  #           banUser:
+  #             $ref: "#/components/links/BanUser"
+  #           getUserPhotos:
+  #             $ref: "#/components/links/GetUserPhotos"
+  #           getUserFollowers:
+  #             $ref: "#/components/links/GetUserFollowers"
+  #           getUserFollowings:
+  #             $ref: "#/components/links/GetUserFollowings"
+  #       "500":
+  #         $ref: "#/components/responses/InternalServerError"
+  #       '401':
+  #         $ref: '#/components/responses/UnauthorizedError'
+  /users/{userId}/followers:
+    parameters:
+      - $ref: "#/components/parameters/UserID"
+    get:
+      tags: ["Follows"]
+      operationId: getUserFollowers
+      summary: Get user followers
+      description: Return a list of users that are following the user specified by id
+      responses:
+        "200":
+          description: A list of user resources
+          content:
+            application/json:
+              schema:
+                description: A list of user resources
+                type: array
+                items:
+                  $ref: "#/components/schemas/BaseUser"
+                minItems: 0
+                maxItems: 99999
+          links:
+            getUserById:
+              $ref: "#/components/links/GetUserById"
+            followUser:
+              $ref: "#/components/links/FollowUser"
+            unfollowUser:
+              $ref: "#/components/links/UnfollowUser"
+            banUser:
+              $ref: "#/components/links/BanUser"
+            unbanUser:
+              $ref: "#/components/links/UnbanUser"
+            getUserPhotos:
+              $ref: "#/components/links/GetUserPhotos"
+            getUserFollowers:
+              $ref: "#/components/links/GetUserFollowers"
+            getUserFollowings:
+              $ref: "#/components/links/GetUserFollowings"
+        "404":
+          description: User not found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  # /users/me/followings:
+  #   get:
+  #     tags: ["Follows"]
+  #     operationId: getMyUserFollowings
+  #     summary: Get user followings
+  #     description: Return a list of users the current user is following
+  #     responses:
+  #       "200":
+  #         description: A list of user resources
+  #         content:
+  #           application/json:
+  #             schema:
+  #               description: A list of user resources
+  #               type: array
+  #               items:
+  #                 $ref: "#/components/schemas/BaseUser"
+  #               minItems: 0
+  #               maxItems: 99999
+  #         links:
+  #           getUserById:
+  #             $ref: "#/components/links/GetUserById"
+  #           unfollowUser:
+  #             $ref: "#/components/links/UnfollowUser"
+  #           banUser:
+  #             $ref: "#/components/links/BanUser"
+  #           getUserPhotos:
+  #             $ref: "#/components/links/GetUserPhotos"
+  #           getUserFollowers:
+  #             $ref: "#/components/links/GetUserFollowers"
+  #           getUserFollowings:
+  #             $ref: "#/components/links/GetUserFollowings"
+  #       "500":
+  #         $ref: "#/components/responses/InternalServerError"
+  #       '401':
+  #         $ref: '#/components/responses/UnauthorizedError'
+  /users/{userId}/followings:
+    parameters:
+      - $ref: "#/components/parameters/UserID"
+    get:
+      tags: ["Follows"]
+      operationId: getUserFollowings
+      summary: Get user followings
+      description: Return a list of users the user specified by id is following
+      responses:
+        "200":
+          description: A list of user resources
+          content:
+            application/json:
+              schema:
+                description: A list of user resources
+                type: array
+                items:
+                  $ref: "#/components/schemas/BaseUser"
+                minItems: 0
+                maxItems: 99999
+          links:
+            getUserById:
+              $ref: "#/components/links/GetUserById"
+            followUser:
+              $ref: "#/components/links/FollowUser"
+            unfollowUser:
+              $ref: "#/components/links/UnfollowUser"
+            banUser:
+              $ref: "#/components/links/BanUser"
+            unbanUser:
+              $ref: "#/components/links/UnbanUser"
+            getUserPhotos:
+              $ref: "#/components/links/GetUserPhotos"
+            getUserFollowers:
+              $ref: "#/components/links/GetUserFollowers"
+            getUserFollowings:
+              $ref: "#/components/links/GetUserFollowings"
+        "404":
+          description: User not found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /users/me/followings/{targetUserId}:
+    parameters:
+      - schema:
+          $ref: '#/components/schemas/UserID'
+        name: targetUserId
+        in: path
+        required: true
+        description: Unique identifier of a user
+        example: 1234
+    put:
+      tags: ["Follows"]
+      operationId: followUser
+      summary: Follow a user
+      description: Creates a "following" resource between the current user and the target user, allowing the authenticating user to follow the user specified by the ID parameter.
+      responses:
+        "204":
+          description: User has become a follower of the user specified by id
+        "404":
+          description: User not found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    delete:
+      tags: ["Follows"]
+      operationId: unfollowUser
+      summary: Unfollow a user
+      description: Deletes a "following" resource between the current user and the target user, allowing the authenticating user to unfollow the user specified by the ID parameter
+      responses:
+        "204":
+          description: User is no more a follower of the user specified by id
+        "404":
+          description: User not found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+  /users/me/bans/{targetUserId}:
+    parameters:
+      - schema:
+          $ref: '#/components/schemas/UserID'
+        name: targetUserId
+        in: path
+        required: true
+        description: Unique identifier of a user
+        example: 1234
+    put:
+      tags: ["User bans"]
+      operationId: banUser
+      summary: Ban a user
+      description: Creates a "ban" resource between the current user and the target user, allowing the authenticating user to ban the user specified by the ID parameter.
+      responses:
+        "204":
+          description: User specified by id has become banned for the authenticated user
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          description: User not found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+    delete:
+      tags: ["User bans"]
+      operationId: unbanUser
+      summary: Unban a user
+      description: Deletes a "ban" resource between the current user and the target user, allowing the authenticating user to ban the user specified by the ID parameter
+      responses:
+        "204":
+          description: User specified by id is no more banned for the authenticated user
+        "404":
+          description: User not found
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
