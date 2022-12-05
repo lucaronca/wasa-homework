@@ -1,4 +1,6 @@
 /*
+This API allows using WASA Photo with a variety of functionalities like image upload, user profile photos,
+stream and information etc.
 Webapi is the executable for the main web server.
 It builds a web server around APIs from `service/api`.
 Webapi connects to external resources needed (database) and starts two web servers: the API web server, and the debug.
