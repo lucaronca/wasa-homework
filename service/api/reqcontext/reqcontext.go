@@ -11,6 +11,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+type User struct {
+	// Unique identifier of a user
+	Id int
+
+	// User name
+	Username string
+}
+
 // RequestContext is the context of the request, for request-dependent parameters
 type RequestContext struct {
 	// ReqUUID is the request unique ID
@@ -18,4 +26,6 @@ type RequestContext struct {
 
 	// Logger is a custom field logger for the request
 	Logger logrus.FieldLogger
+
+	User User
 }

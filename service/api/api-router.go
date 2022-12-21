@@ -1,6 +1,5 @@
 /*
-Package api exposes the main API engine. All HTTP APIs are handled here - so-called "business logic" should be here, or
-in a dedicated package (if that logic is complex enough).
+Package api exposes the main API engine.
 
 To use this package, you should create a new instance with New() passing a valid Config. The resulting Router will have
 the Router.Handler() function that returns a handler that can be used in a http.Server (or in other middlewares).
@@ -9,21 +8,21 @@ Example:
 
 	// Create the API router
 	apirouter, err := api.New(api.Config{
-		Logger:   logger,
-		Database: appdb,
+		Logger:   logger
 	})
 	if err != nil {
 		logger.WithError(err).Error("error creating the API server instance")
 		return fmt.Errorf("error creating the API server instance: %w", err)
 	}
-	router := apirouter.Handler()
-
-	// ... other stuff here, like middleware chaining, etc.
+	handler := apirouter.Handler(
+		handlerCfg,
+		controllers...,
+	)
 
 	// Create the API server
 	apiserver := http.Server{
 		Addr:              cfg.Web.APIHost,
-		Handler:           router,
+		Handler:           handler,
 		ReadTimeout:       cfg.Web.ReadTimeout,
 		ReadHeaderTimeout: cfg.Web.ReadTimeout,
 		WriteTimeout:      cfg.Web.WriteTimeout,
@@ -41,36 +40,27 @@ import (
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
-	"github.com/lucaronca/wasa-homework/service/database"
+	"github.com/lucaronca/wasa-homework/service/api/controllers"
 	"github.com/sirupsen/logrus"
 )
-
-// Config is used to provide dependencies and configuration to the New function.
-type Config struct {
-	// Logger where log entries are sent
-	Logger logrus.FieldLogger
-
-	// Database is the instance of database.AppDatabase where data are saved
-	Database database.AppDatabase
-}
 
 // Router is the package API interface representing an API handler builder
 type Router interface {
 	// Handler returns an HTTP handler for APIs provided in this package
-	Handler() http.Handler
+	Handler(
+		cfg HandlerConfig,
+		controllers ...controllers.Controller,
+	) http.Handler
 
 	// Close terminates any resource used in the package
 	Close() error
 }
 
 // New returns a new Router instance
-func New(cfg Config) (Router, error) {
+func New(cfg RouterConfig) (Router, error) {
 	// Check if the configuration is correct
 	if cfg.Logger == nil {
 		return nil, errors.New("logger is required")
-	}
-	if cfg.Database == nil {
-		return nil, errors.New("database is required")
 	}
 
 	// Create a new router where we will register HTTP endpoints. The server will pass requests to this router to be
@@ -82,7 +72,6 @@ func New(cfg Config) (Router, error) {
 	return &_router{
 		router:     router,
 		baseLogger: cfg.Logger,
-		db:         cfg.Database,
 	}, nil
 }
 
@@ -92,6 +81,4 @@ type _router struct {
 	// baseLogger is a logger for non-requests contexts, like goroutines or background tasks not started by a request.
 	// Use context logger if available (e.g., in requests) instead of this logger.
 	baseLogger logrus.FieldLogger
-
-	db database.AppDatabase
 }
