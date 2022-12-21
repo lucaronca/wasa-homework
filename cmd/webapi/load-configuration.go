@@ -11,6 +11,11 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
+type Assets struct {
+	PhotosDirectory string `conf:"default:/static/photos"`
+	PhotosUrlPath   string `conf:"default:/assets/photos"`
+}
+
 // WebAPIConfiguration describes the web API configuration. This structure is automatically parsed by
 // loadConfiguration and values from flags, environment variable or configuration file will be loaded.
 type WebAPIConfiguration struct {
@@ -28,9 +33,7 @@ type WebAPIConfiguration struct {
 	DB    struct {
 		Filename string `conf:"default:/wasa-photo.db"`
 	}
-	Assets struct {
-		PhotosPath string `conf:"default:static/photos"`
-	}
+	Assets
 }
 
 // loadConfiguration creates a WebAPIConfiguration starting from flags, environment variables and configuration file.

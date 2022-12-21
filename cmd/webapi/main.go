@@ -34,10 +34,15 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/ardanlabs/conf"
 	"github.com/lucaronca/wasa-homework/service/api"
+	"github.com/lucaronca/wasa-homework/service/api/controllers"
+	"github.com/lucaronca/wasa-homework/service/api/repositories"
+	"github.com/lucaronca/wasa-homework/service/api/routes"
+	"github.com/lucaronca/wasa-homework/service/api/services"
 	"github.com/lucaronca/wasa-homework/service/database"
 	"github.com/lucaronca/wasa-homework/service/globaltime"
 	_ "github.com/mattn/go-sqlite3"
@@ -51,6 +56,96 @@ func main() {
 		_, _ = fmt.Fprintln(os.Stderr, "error: ", err)
 		os.Exit(1)
 	}
+}
+
+/*
+newHandler returns a new http.Handler for an api Router. Given an api Router, Handler dependencies
+and configuration, this function defines the necessary api repositories, services, middlewares, controllers,
+and makes sure that the router is configured with the HTTP endpoints and handlers defined in the controllers.
+Finally it returns an http.Handler ready to be invoked by an http.Server.
+*/
+func newHandler(router api.Router, db database.AppDatabase, assetsCfg Assets) http.Handler {
+	// Liveness checker
+	livenessChecker := api.NewLivenessChecker(db.Ping)
+
+	// Instantiate repositories
+	authRepository, _ := repositories.NewAuthRepository(db)
+	usersRepository, _ := repositories.NewUsersRepository(db)
+	bansRepository, _ := repositories.NewBansRepository(db)
+	followsRepository, _ := repositories.NewFollowsRepository(db)
+	photosRepository, _ := repositories.NewPhotosRepository(db)
+	likesRepository, _ := repositories.NewLikesRepository(db)
+	commentsRepository, _ := repositories.NewCommentsRepository(db)
+
+	// Instantiate services
+	authService := services.NewAuthService(authRepository, usersRepository)
+	bansService := services.NewBansService(usersRepository, bansRepository, followsRepository)
+	followsService := services.NewFollowsService(usersRepository, bansRepository, followsRepository)
+	photosService := services.NewPhotosService(
+		assetsCfg.PhotosDirectory,
+		assetsCfg.PhotosUrlPath,
+		usersRepository,
+		bansRepository,
+		photosRepository,
+		likesRepository,
+		commentsRepository,
+		followsRepository,
+	)
+	usersService := services.NewUsersService(
+		usersRepository,
+		bansRepository,
+		followsRepository,
+		photosRepository,
+	)
+	likesService := services.NewLikesService(
+		usersRepository,
+		bansRepository,
+		likesRepository,
+		photosRepository,
+	)
+	commentsService := services.NewCommentsService(
+		usersRepository,
+		bansRepository,
+		commentsRepository,
+		photosRepository,
+	)
+
+	// Instantiate middlewares
+	tokenAuthMiddleware := routes.NewTokenAuthMiddleware(authService)
+
+	// Instantiate controllers
+	loginController := controllers.NewLoginController(authService)
+	bansController := controllers.NewBansController(bansService)
+	followsController := controllers.NewFollowsController(followsService)
+	photosController := controllers.NewPhotosController(photosService)
+	usersController := controllers.NewUsersController(usersService)
+	likesController := controllers.NewLikesController(likesService)
+	commentsController := controllers.NewCommentsController(commentsService)
+
+	// Handler Configuration
+	handlerCfg := api.HandlerConfig{
+		Photos: api.HandlerConfigPhotos{
+			PhotosDirectory: assetsCfg.PhotosDirectory,
+			PhotosUrlPath:   assetsCfg.PhotosUrlPath,
+		},
+		Deps: api.HandlerConfigDependencies{
+			LivenessChecker:     livenessChecker,
+			TokenAuthMiddleware: tokenAuthMiddleware,
+		},
+	}
+
+	// Instantiate routes
+	handler := router.Handler(
+		handlerCfg,
+		loginController,
+		followsController,
+		bansController,
+		photosController,
+		usersController,
+		likesController,
+		commentsController,
+	)
+	return handler
 }
 
 // run executes the program. The body of this function should perform the following steps:
@@ -85,7 +180,18 @@ func run() error {
 
 	// Start Database
 	logger.Println("initializing database support")
-	dbconn, err := sql.Open("sqlite3", cfg.DB.Filename)
+	ex, err := os.Executable()
+	if err != nil {
+		panic(err)
+	}
+	exPath := filepath.Dir(ex)
+	dbconn, err := sql.Open(
+		"sqlite3",
+		fmt.Sprintf(
+			"file:%s?_foreign_keys=on",
+			filepath.Join(exPath, "data", cfg.DB.Filename),
+		),
+	)
 	if err != nil {
 		logger.WithError(err).Error("error opening SQLite DB")
 		return fmt.Errorf("opening SQLite: %w", err)
@@ -113,15 +219,24 @@ func run() error {
 	serverErrors := make(chan error, 1)
 
 	// Create the API router
-	apirouter, err := api.New(api.Config{
-		Logger:   logger,
-		Database: db,
+	apirouter, err := api.New(api.RouterConfig{
+		Logger: logger,
 	})
 	if err != nil {
 		logger.WithError(err).Error("error creating the API server instance")
 		return fmt.Errorf("creating the API server instance: %w", err)
 	}
-	router := apirouter.Handler()
+
+	assetsCfg := Assets{
+		PhotosDirectory: filepath.Join(exPath, cfg.Assets.PhotosDirectory),
+		PhotosUrlPath:   cfg.Assets.PhotosUrlPath,
+	}
+
+	handler := newHandler(
+		apirouter,
+		db,
+		assetsCfg,
+	)
 
 	router, err = registerWebUI(router)
 	if err != nil {
@@ -130,12 +245,12 @@ func run() error {
 	}
 
 	// Apply CORS policy
-	router = applyCORSHandler(router)
+	handler = applyCORSHandler(handler)
 
 	// Create the API server
 	apiserver := http.Server{
 		Addr:              cfg.Web.APIHost,
-		Handler:           router,
+		Handler:           handler,
 		ReadTimeout:       cfg.Web.ReadTimeout,
 		ReadHeaderTimeout: cfg.Web.ReadTimeout,
 		WriteTimeout:      cfg.Web.WriteTimeout,
