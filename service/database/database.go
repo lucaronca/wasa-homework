@@ -38,14 +38,12 @@ import (
 
 // AppDatabase is the high level interface for the DB
 type AppDatabase interface {
-	GetName() (string, error)
-	SetName(name string) error
-
+	Conn() *sql.DB
 	Ping() error
 }
 
 type appdbimpl struct {
-	c *sql.DB
+	connectionInstance *sql.DB
 }
 
 // New returns a new instance of AppDatabase based on the SQLite connection `db`.
@@ -56,21 +54,118 @@ func New(db *sql.DB) (AppDatabase, error) {
 	}
 
 	// Check if table exists. If not, the database is empty, and we need to create the structure
-	var tableName string
-	err := db.QueryRow(`SELECT name FROM sqlite_master WHERE type='table' AND name='example_table';`).Scan(&tableName)
-	if errors.Is(err, sql.ErrNoRows) {
-		sqlStmt := `CREATE TABLE example_table (id INTEGER NOT NULL PRIMARY KEY, name TEXT);`
-		_, err = db.Exec(sqlStmt)
-		if err != nil {
-			return nil, fmt.Errorf("error creating database structure: %w", err)
-		}
+	// Users table
+	sqlStmt := `CREATE TABLE IF NOT EXISTS users (id INTEGER NOT NULL PRIMARY KEY, username TEXT);`
+	_, err := db.Exec(sqlStmt)
+	if err != nil {
+		return nil, fmt.Errorf("error creating database structure: %w", err)
+	}
+
+	// Users tokens table
+	sqlStmt = `
+		CREATE TABLE IF NOT EXISTS user_tokens (
+			user_id INTEGER NOT NULL,
+			token TEXT NOT NULL,
+			UNIQUE(user_id, token),
+			PRIMARY KEY(user_id, token),
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+		);
+	`
+	_, err = db.Exec(sqlStmt)
+	if err != nil {
+		return nil, fmt.Errorf("error creating database structure: %w", err)
+	}
+
+	// Users bans table
+	sqlStmt = `
+		CREATE TABLE IF NOT EXISTS user_bans (
+			user_id INTEGER NOT NULL,
+			banned_id INTEGER NOT NULL,
+			UNIQUE(user_id, banned_id),
+			PRIMARY KEY(user_id, banned_id),
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+			FOREIGN KEY(banned_id) REFERENCES users(id) ON DELETE CASCADE
+		);
+	`
+	_, err = db.Exec(sqlStmt)
+	if err != nil {
+		return nil, fmt.Errorf("error creating database structure: %w", err)
+	}
+
+	// Follows table
+	sqlStmt = `
+		CREATE TABLE IF NOT EXISTS follows (
+			follower_id INTEGER NOT NULL,
+			following_id INTEGER NOT NULL,
+			UNIQUE(follower_id, following_id),
+			PRIMARY KEY (following_id, follower_id),
+			FOREIGN KEY(follower_id) REFERENCES users(id) ON DELETE CASCADE,
+			FOREIGN KEY(following_id) REFERENCES users(id) ON DELETE CASCADE
+		);
+	`
+	_, err = db.Exec(sqlStmt)
+	if err != nil {
+		return nil, fmt.Errorf("error creating database structure: %w", err)
+	}
+
+	// Photos table
+	sqlStmt = `
+		CREATE TABLE IF NOT EXISTS photos (
+			id INTEGER NOT NULL PRIMARY KEY,
+			url TEXT NOT NULL,
+			user_id INTEGER NOT NULL,
+			upload_date TEXT NOT NULL,
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+		);
+	`
+	_, err = db.Exec(sqlStmt)
+	if err != nil {
+		return nil, fmt.Errorf("error creating database structure: %w", err)
+	}
+
+	// Likes table
+	sqlStmt = `
+		CREATE TABLE IF NOT EXISTS likes (
+			id INTEGER NOT NULL PRIMARY KEY,
+			photo_id INTEGER NOT NULL,
+			user_id INTEGER NOT NULL,
+			date TEXT NOT NULL,
+			UNIQUE(photo_id, user_id),
+			FOREIGN KEY(photo_id) REFERENCES photos(id) ON DELETE CASCADE,
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+		);
+	`
+	_, err = db.Exec(sqlStmt)
+	if err != nil {
+		return nil, fmt.Errorf("error creating database structure: %w", err)
+	}
+
+	// Likes table
+	sqlStmt = `
+		CREATE TABLE IF NOT EXISTS comments (
+			id INTEGER NOT NULL PRIMARY KEY,
+			photo_id INTEGER NOT NULL,
+			user_id INTEGER NOT NULL,
+			date TEXT NOT NULL,
+			content TEXT NOT NULL,
+			FOREIGN KEY(photo_id) REFERENCES photos(id) ON DELETE CASCADE,
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+		);
+	`
+	_, err = db.Exec(sqlStmt)
+	if err != nil {
+		return nil, fmt.Errorf("error creating database structure: %w", err)
 	}
 
 	return &appdbimpl{
-		c: db,
+		db,
 	}, nil
 }
 
+func (db *appdbimpl) Conn() *sql.DB {
+	return db.connectionInstance
+}
+
 func (db *appdbimpl) Ping() error {
-	return db.c.Ping()
+	return db.connectionInstance.Ping()
 }
