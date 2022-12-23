@@ -238,7 +238,7 @@ func run() error {
 		assetsCfg,
 	)
 
-	router, err = registerWebUI(router)
+	handler, err = registerWebUI(handler)
 	if err != nil {
 		logger.WithError(err).Error("error registering web UI handler")
 		return fmt.Errorf("registering web UI handler: %w", err)
