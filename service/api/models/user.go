@@ -11,7 +11,7 @@ type FullUser struct {
 	TotalFollowers *int `json:"totalFollowers,omitempty"`
 
 	// Total followings count
-	TotalFollowings *int `json:"totalFollowing,omitempty"`
+	TotalFollowings *int `json:"totalFollowings,omitempty"`
 
 	// If a user is banned for the authenticated user
 	BannedForUser *bool `json:"bannedForUser,omitempty"`

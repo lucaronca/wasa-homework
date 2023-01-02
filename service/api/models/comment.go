@@ -9,7 +9,7 @@ type Comment struct {
 	Id int `json:"id,omitempty"`
 
 	// Like date
-	Date time.Time `json:"uploadDate,omitempty"`
+	Date time.Time `json:"date,omitempty"`
 
 	// Comment's content
 	Content string `json:"content,omitempty"`

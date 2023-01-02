@@ -19,6 +19,9 @@ type Photo struct {
 	// Image comments number
 	TotalComments int `json:"totalComments"`
 
+	// Image liked by current user
+	UserLiked bool `json:"userLiked"`
+
 	// Image upload date
 	UploadDate time.Time `json:"uploadDate,omitempty"`
 

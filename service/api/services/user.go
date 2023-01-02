@@ -12,7 +12,7 @@ var ErrUserForbidden = errors.New("You are not authorized to do this operations"
 
 type UsersService interface {
 	GetUser(int, int) (*models.FullUser, error)
-	GetUsers(string) (*[]models.BaseUser, error)
+	GetUsers(int, string) (*[]models.BaseUser, error)
 	UpdateUsername(int, string) (*models.FullUser, error)
 }
 
@@ -98,8 +98,11 @@ func (s *usersService) GetUser(userId int, targetUserId int) (*models.FullUser, 
 	return &requestedUser, nil
 }
 
-func (s *usersService) GetUsers(username string) (*[]models.BaseUser, error) {
-	users, err := s.ur.GetUsers(s.ur.FilterByUsername(username, false))
+func (s *usersService) GetUsers(userId int, username string) (*[]models.BaseUser, error) {
+	users, err := s.ur.GetUsers(
+		s.ur.FilterByUsername(username, false),
+		s.br.WithoutBanners(userId),
+	)
 	if err != nil {
 		return nil, err
 	}

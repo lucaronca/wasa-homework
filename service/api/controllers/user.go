@@ -91,7 +91,7 @@ func (c *usersController) GetUsers(w http.ResponseWriter, r *http.Request, ps ht
 	// 	return
 	// }
 
-	result, err := c.service.GetUsers(username)
+	result, err := c.service.GetUsers(ctx.User.Id, username)
 	// If an error occurred, encode the error with the status code
 	if errors.Is(err, services.ErrNoUser) {
 		c.errorHandler(w, r, &NotFoundError{"User"}, ctx)

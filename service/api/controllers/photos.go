@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"errors"
-	"io"
 	"net/http"
 
 	"github.com/julienschmidt/httprouter"
@@ -10,8 +9,6 @@ import (
 	"github.com/lucaronca/wasa-homework/service/api/routes"
 	"github.com/lucaronca/wasa-homework/service/api/services"
 )
-
-var allowedImagesTypes = []string{"image/jpeg", "image/png", "image/webp"}
 
 // photosController binds http requests to an api service and writes the service results to the http response
 type photosController struct {
@@ -109,33 +106,14 @@ func (c *photosController) GetPhotos(w http.ResponseWriter, r *http.Request, ps 
 
 // UploadPhoto - Upload a photo
 func (c *photosController) UploadPhoto(w http.ResponseWriter, r *http.Request, ps httprouter.Params, ctx reqcontext.RequestContext) {
-	bodyBytes, err := io.ReadAll(r.Body)
-	if err != nil {
-		c.errorHandler(w, r, err, ctx)
-		return
-	}
 	defer r.Body.Close()
 
-	contentType := http.DetectContentType(bodyBytes)
-	allowed := false
-	for _, allowedType := range allowedImagesTypes {
-		if contentType == allowedType {
-			allowed = true
-			break
-		}
-	}
-	if !allowed {
-		c.errorHandler(w, r, &ParsingError{errors.New("Unsupported image type")}, ctx)
-		return
-	}
-	exts := make(map[string]string)
-	exts["image/jpeg"] = "jpeg"
-	exts["image/png"] = "png"
-	exts["image/webp"] = "webp"
-
-	newPhoto, err := c.service.CreatePhoto(ctx.User.Id, bodyBytes, exts[contentType])
+	newPhoto, err := c.service.CreatePhoto(ctx.User.Id, r.Body)
 	if errors.Is(err, services.ErrNoUser) {
 		c.errorHandler(w, r, &NotFoundError{"User"}, ctx)
+		return
+	} else if errors.Is(err, services.ErrPhotoFormatNotSupported) {
+		c.errorHandler(w, r, &ParsingError{err}, ctx)
 		return
 	} else if err != nil {
 		c.errorHandler(w, r, err, ctx)

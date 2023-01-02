@@ -18,6 +18,7 @@ type LikesRepository interface {
 	RemoveLike(int, int) error
 	// Relation builders
 	WithTotalLikes() Relation
+	WithLikedBy(int) Relation
 }
 
 type likesRepository struct {
@@ -115,6 +116,18 @@ func (r *likesRepository) WithTotalLikes() Relation {
 				ON %[1]vs.id = likes_%[1]vs_id
 			`,
 			entity,
+		)
+	})
+}
+
+func (r *likesRepository) WithLikedBy(userId int) Relation {
+	return Relation(func(entity string) string {
+		return fmt.Sprintf(`
+				LEFT OUTER JOIN (SELECT %v_id AS user_liked_%[1]v_id FROM likes WHERE user_id = %[2]v)
+				ON user_liked_%[1]v_id = %[1]vs.id
+		`,
+			entity,
+			userId,
 		)
 	})
 }

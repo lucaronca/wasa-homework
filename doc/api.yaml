@@ -182,6 +182,10 @@ components:
           type: integer
           format: int32
           example: 5
+        userLiked:
+          description: Image liked by current user
+          type: boolean
+          example: true
         uploadDate:
           description: Image upload date
           type: string

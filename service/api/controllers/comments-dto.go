@@ -10,22 +10,19 @@ type CommentPhoto struct {
 	Content string `json:"content,omitempty"`
 }
 
-var ErrCommentContentIsZero = errors.New("Comment content is zero value")
-var ErrCommentConentIsNotValid = errors.New("Comment is too long")
-
-func parseContentParameter(param string) error {
-	if len(param) > 1000 {
-		return ErrCommentConentIsNotValid
-	}
-
-	return nil
-}
+var ErrCommentContentIsZero = errors.New("Comment content is empty")
+var ErrCommentContentIsNotValid = errors.New("Comment is too long")
 
 // assertCommentPhotoValid checks if the required fields are not zero-ed
 func assertCommentPhotoValid(obj CommentPhoto) error {
-	if len(obj.Content) == 0 {
+	length := len(obj.Content)
+	switch {
+	case length == 0:
 		return ErrCommentContentIsZero
-	}
+	case length > 500:
+		return ErrCommentContentIsNotValid
 
-	return parseContentParameter(obj.Content)
+	default:
+		return nil
+	}
 }

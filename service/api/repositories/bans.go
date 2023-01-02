@@ -16,6 +16,7 @@ type BansRepository interface {
 	RemoveBan(int, int) error
 	// Relations builders
 	WithoutBanned(int) Relation
+	WithoutBanners(int) Relation
 }
 
 type bansRepository struct {
@@ -75,6 +76,22 @@ func (r *bansRepository) WithoutBanned(userId int) Relation {
 	return Relation(func(string) string {
 		return fmt.Sprintf(
 			"WHERE user_id NOT IN (SELECT banned_id from user_bans WHERE user_id = %d)",
+			userId,
+		)
+	})
+}
+
+func (r *bansRepository) WithoutBanners(userId int) Relation {
+	return Relation(func(entity string) string {
+		var userIdField string
+		if entity == "user" {
+			userIdField = "id"
+		} else {
+			userIdField = "user_id"
+		}
+		return fmt.Sprintf(
+			"WHERE %s NOT IN (SELECT user_id from user_bans WHERE banned_id = %d)",
+			userIdField,
 			userId,
 		)
 	})

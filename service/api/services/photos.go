@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 
@@ -14,12 +15,18 @@ import (
 )
 
 var ErrNoPhoto = errors.New("Photo not found")
+var ErrPhotoFormatNotSupported = errors.New("Unsupported image type")
+var allowedImagesTypes = map[string]string{
+	"image/jpeg": "jpeg",
+	"image/png":  "png",
+	"image/webp": "webp",
+}
 
 // PhotosService defines the api actions to manage photos
 type PhotosService interface {
 	GetUserPhotos(int, int, int, int) (*models.PaginatedPhotos, error)
 	GetStream(int, int, int) (*models.PaginatedPhotos, error)
-	CreatePhoto(int, []byte, string) (*models.Photo, error)
+	CreatePhoto(int, io.Reader) (*models.Photo, error)
 	DeletePhoto(int, int) error
 }
 
@@ -98,6 +105,7 @@ func (s *photosService) GetUserPhotos(userId, targetUserId, offset, limit int) (
 				s.ur.WithUsers(),
 				s.lr.WithTotalLikes(),
 				s.cr.WithTotalComments(),
+				s.lr.WithLikedBy(userId),
 				s.ur.FilterByUserId(targetUserId),
 			)
 			if err != nil {
@@ -159,6 +167,7 @@ func (s *photosService) GetStream(targetUserId, offset, limit int) (*models.Pagi
 				s.ur.WithUsers(),
 				s.lr.WithTotalLikes(),
 				s.cr.WithTotalComments(),
+				s.lr.WithLikedBy(targetUserId),
 				s.fr.FilterByFollowerId(targetUserId),
 				s.br.WithoutBanned(targetUserId),
 			)
@@ -207,35 +216,82 @@ func (s *photosService) GetStream(targetUserId, offset, limit int) (*models.Pagi
 	}, nil
 }
 
-func (s *photosService) CreatePhoto(userId int, photo []byte, ext string) (*models.Photo, error) {
+func (s *photosService) CreatePhoto(userId int, photo io.Reader) (*models.Photo, error) {
+	// Read first 512 bytes of file to get its content type
+	header := make([]byte, 512)
+	shortPhoto := false
+	if _, err := io.ReadFull(photo, header); err != nil {
+		if errors.Is(err, io.ErrShortBuffer) {
+			shortPhoto = true
+		} else {
+			return nil, err
+		}
+	}
+	contentType := http.DetectContentType(header)
+
+	ext, ok := allowedImagesTypes[contentType]
+	if !ok {
+		return nil, ErrPhotoFormatNotSupported
+	}
+
 	photoName, err := uuid.NewV4()
 	if err != nil {
 		return nil, err
 	}
+
 	photoNameWithExt := photoName.String() + "." + ext
 	photoFilePath := filepath.Join(s.photosDirectory, photoNameWithExt)
 
-	photoId, err := s.pr.SetPhoto(filepath.Join(s.photosUrlPath, photoNameWithExt), userId, globaltime.Now())
-	if err != nil {
-		return nil, err
+	out := NewWorkersFacade(
+		// Save photo resource
+		NewJob(func(sendRes SendFunc) {
+			photoId, err := s.pr.SetPhoto(filepath.Join(s.photosUrlPath, photoNameWithExt), userId, globaltime.Now())
+			if err != nil {
+				sendRes(nil, err)
+			}
+
+			newPhoto, err := s.pr.GetPhotoById(photoId)
+			if err != nil {
+				sendRes(nil, err)
+			}
+			sendRes(newPhoto, nil)
+		}),
+		// Save photo asset
+		NewJob(func(sendRes SendFunc) {
+			// Open a new file with specific permissions to append bytes to it
+			file, err := os.OpenFile(photoFilePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+			if err != nil {
+				sendRes(nil, err)
+			}
+			defer file.Close()
+
+			// Copy the first 512 bytes of the photo to the file
+			_, err = io.Copy(file, bytes.NewReader(header))
+			if err != nil {
+				sendRes(nil, err)
+			}
+			// Copy the remaining bytes of the photo to the file, io.Copy uses a buffer so it's efficient
+			if !shortPhoto {
+				_, err = io.Copy(file, photo)
+				if err != nil {
+					sendRes(nil, err)
+				}
+			}
+
+			sendRes(nil, nil)
+		}),
+	)
+
+	var newPhoto *models.Photo
+	for work := range out {
+		if work.err != nil {
+			return nil, work.err
+		}
+		if work.idx == 0 {
+			newPhoto, _ = work.res.(*models.Photo)
+		}
 	}
 
-	file, err := os.Create(photoFilePath)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	r := bytes.NewReader(photo)
-	_, err = io.Copy(file, r)
-	if err != nil {
-		return nil, err
-	}
-
-	newPhoto, err := s.pr.GetPhotoById(photoId)
-	if err != nil {
-		return nil, err
-	}
 	return newPhoto, nil
 }
 

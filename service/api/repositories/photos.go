@@ -69,7 +69,8 @@ func (r *photosRepository) GetPhotos(offset, rowCount int, relations ...Relation
 			users.username,
 			upload_date,
 			CASE WHEN total_likes IS NULL THEN 0 ELSE total_likes END as total_likes,
-			CASE WHEN total_comments IS NULL THEN 0 ELSE total_comments END as total_comments
+			CASE WHEN total_comments IS NULL THEN 0 ELSE total_comments END as total_comments,
+			CASE WHEN user_liked_photo_id IS NULL THEN 0 ELSE 1 END as user_liked_photo
 		FROM photos
 		%s
 		ORDER BY upload_date DESC
@@ -95,7 +96,8 @@ func (r *photosRepository) GetPhotos(offset, rowCount int, relations ...Relation
 		var uploadDate string
 		var totalLikes int
 		var totalComments int
-		err = rows.Scan(&id, &url, &ownerId, &ownerUsername, &uploadDate, &totalLikes, &totalComments)
+		var userLiked bool
+		err = rows.Scan(&id, &url, &ownerId, &ownerUsername, &uploadDate, &totalLikes, &totalComments, &userLiked)
 		if err != nil {
 			return nil, err
 		}
@@ -115,6 +117,7 @@ func (r *photosRepository) GetPhotos(offset, rowCount int, relations ...Relation
 			},
 			TotalLikes:    totalLikes,
 			TotalComments: totalComments,
+			UserLiked:     userLiked,
 		})
 	}
 

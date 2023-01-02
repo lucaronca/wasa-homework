@@ -180,16 +180,22 @@ func run() error {
 
 	// Start Database
 	logger.Println("initializing database support")
-	ex, err := os.Executable()
+	pwd, err := os.Getwd()
 	if err != nil {
 		panic(err)
 	}
-	exPath := filepath.Dir(ex)
+
+	dbPath := os.Getenv("DB_PATH")
+
+	if dbPath == "" {
+		dbPath = filepath.Join(pwd, "/data")
+	}
+
 	dbconn, err := sql.Open(
 		"sqlite3",
 		fmt.Sprintf(
 			"file:%s?_foreign_keys=on",
-			filepath.Join(exPath, "data", cfg.DB.Filename),
+			filepath.Join(dbPath, cfg.DB.Filename),
 		),
 	)
 	if err != nil {
@@ -228,7 +234,7 @@ func run() error {
 	}
 
 	assetsCfg := Assets{
-		PhotosDirectory: filepath.Join(exPath, cfg.Assets.PhotosDirectory),
+		PhotosDirectory: filepath.Join(pwd, cfg.Assets.PhotosDirectory),
 		PhotosUrlPath:   cfg.Assets.PhotosUrlPath,
 	}
 

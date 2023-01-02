@@ -94,10 +94,12 @@ func (c *commentsController) CommentPhoto(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if err := assertCommentPhotoValid(commentParam); err != nil {
-		if errors.Is(err, ErrLoginNameIsZero) {
-			c.errorHandler(w, r, &RequiredError{"content"}, ctx)
-		} else if errors.Is(err, ErrLoginNameIsNotValid) {
+		if errors.Is(err, ErrCommentContentIsZero) {
+			c.errorHandler(w, r, &RequiredError{"comment content"}, ctx)
+			return
+		} else if errors.Is(err, ErrCommentContentIsNotValid) {
 			c.errorHandler(w, r, &ParsingError{err}, ctx)
+			return
 		}
 	}
 

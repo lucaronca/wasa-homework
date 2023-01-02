@@ -32,7 +32,7 @@ type RequiredError struct {
 }
 
 func (e *RequiredError) Error() string {
-	return fmt.Sprintf("required field '%s' is zero value.", e.Field)
+	return fmt.Sprintf("Required '%s' is missing.", e.Field)
 }
 
 // NotFoundError indicates that an error has occurred when trying to access a not existing entity

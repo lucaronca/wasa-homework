@@ -1,0 +1,79 @@
+version: "3.9"
+services:
+  traefik:
+    image: "traefik:v2.9"
+    container_name: "traefik"
+    command:
+      - "--log.level=DEBUG"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+
+  whoami:
+    image: "traefik/whoami"
+    container_name: "whoami"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=Path(`/whoami`)"
+      - "traefik.http.routers.whoami.entrypoints=web"
+      - "traefik.docker.network=traefik-network"
+
+  wasa-photo-api:
+    build:
+      context: .
+      dockerfile: ./Dockerfile.backend
+    expose:
+      - 3000
+    volumes:
+      - ./data:/data:rw
+      - ./static:/app/static:rw
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wasa-photo-api.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.wasa-photo-api.priority=1"
+      - "traefik.http.routers.wasa-photo-api.entrypoints=web"
+      - "traefik.http.middlewares.wasa-photo-api-stripprefix.stripprefix.prefixes=/api"
+      - "traefik.http.routers.wasa-photo-api.middlewares=wasa-photo-api-stripprefix@docker"
+      - "traefik.http.services.wasa-photo-api.loadbalancer.server.port=3000"
+
+  static-photos:
+    image: nginx
+    volumes:
+      - ./static/photos:/usr/share/nginx/html:ro
+
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.static-photos.rule=PathPrefix(`/static/assets/photos`)"
+      - "traefik.http.routers.static-photos.priority=2"
+      - "traefik.http.routers.static-photos.entrypoints=web"
+      - "traefik.http.middlewares.static-photos-stripprefix.stripprefix.prefixes=/static/assets/photos"
+      - "traefik.http.routers.static-photos.middlewares=static-photos-stripprefix@docker"
+      - "traefik.http.services.static-photos.loadbalancer.server.port=80"
+      # - traefik.http.routers.static-photos.tls=true
+      # - traefik.http.routers.static-photos.tls.certresolver=le
+
+  wasa-photo-web-app:
+    build:
+      context: .
+      dockerfile: ./Dockerfile.frontend
+      args:
+        - APP_BASE_PATH=/app
+        - API_URL=/api
+        - STATIC_FILES_URL=/static
+
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.wasa-photo-web-app.rule=PathPrefix(`/app`)"
+      - "traefik.http.routers.wasa-photo-web-app.entrypoints=web"
+      - "traefik.http.middlewares.wasa-photo-web-app-stripprefix.stripprefix.prefixes=/app"
+      - "traefik.http.routers.wasa-photo-web-app.middlewares=wasa-photo-web-app-stripprefix@docker"
+      # - traefik.http.routers.static-files.tls=true
+      # - traefik.http.routers.static-files.tls.certresolver=le

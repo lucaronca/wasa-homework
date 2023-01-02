@@ -203,6 +203,6 @@ func (r *usersRepository) FilterByUsername(username string, strict bool) Relatio
 				username,
 			)
 		}
-		return "WHERE username LIKE " + "\"%" + username + "%\";"
+		return "WHERE username LIKE " + "\"%" + username + "%\""
 	})
 }
