@@ -31,7 +31,7 @@ services:
     expose:
       - 3000
     volumes:
-      - ./data:/data:rw
+      - ./data:/app/data:rw
       - ./static:/app/static:rw
     labels:
       - "traefik.enable=true"

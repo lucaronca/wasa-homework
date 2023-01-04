@@ -60,12 +60,12 @@ export default {
 			}
 		},
 		async getFollowsListsRef() {
-			return (
-				this.$refs.followsLists ??
-				new Promise((r) =>
-					this.$nextTick(() => r(this.$refs.followsLists))
-				)
-			);
+			if (this.$refs.followsLists) {
+				return this.$refs.followsLists
+			} else {
+				await this.$nextTick()
+				return this.$refs.followsLists
+			}
 		},
 		async getUserInfo() {
 			try {

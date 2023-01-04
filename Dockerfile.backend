@@ -10,7 +10,6 @@ COPY ./go.mod ./go.mod
 ### Build executables
 RUN go build -o /app/webapi ./cmd/webapi
 
-
 ### Create final container
 FROM debian:bullseye
 
@@ -26,6 +25,9 @@ RUN mkdir -p ./static/photos
 
 ### Copy the db
 COPY ./data ./data
+
+### Give read and write permission to docker users
+RUN chmod a+rw ./data ./static/photos
 
 ### Executable command
 CMD ["/app/webapi"]

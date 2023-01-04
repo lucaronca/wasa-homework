@@ -15,3 +15,5 @@ docker-compose.log
 /static/photos/*.jpeg
 /static/photos/*.png
 /static/photos/*.webp
+.terraform*
+*.tfstate
