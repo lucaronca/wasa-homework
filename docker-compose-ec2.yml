@@ -1,0 +1,101 @@
+version: "3.9"
+services:
+  traefik:
+    image: "traefik:v2.9"
+    container_name: "traefik"
+    command:
+      - "--log.level=DEBUG"
+      # - "--api.insecure=true"
+      - "--api=true"
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge=true"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web"
+      #- "--certificatesresolvers.myresolver.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
+      - "--certificatesresolvers.myresolver.acme.email=luca.ronca07@gmail.com"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "./letsencrypt:/letsencrypt"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.api-dashboard.rule=Host(`traefik.wasa-photo.lucaronca.it`)"
+      - "traefik.http.routers.api-dashboard.entrypoints=websecure"
+      - "traefik.http.routers.api-dashboard.tls=true"
+      - "traefik.http.routers.api-dashboard.tls.certresolver=myresolver"
+      - "traefik.http.routers.api-dashboard.service=api@internal"
+      - "traefik.http.routers.api-dashboard.middlewares=auth"
+      - "traefik.http.middlewares.auth.basicauth.users=admin:$$2y$$05$$fvq/ez23NjLE4SP9VLZdoelePMrmieZzn3lo4jaENLDZUVdP1/W6y"
+
+  whoami:
+    image: "traefik/whoami"
+    container_name: "whoami"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=(Host(`wasa-photo.lucaronca.it`) && Path(`/whoami`))"
+      - "traefik.http.routers.whoami.priority=2"
+      - "traefik.http.routers.whoami.entrypoints=websecure"
+      - "traefik.http.routers.whoami.tls=true"
+      - "traefik.http.routers.whoami.tls.certresolver=myresolver"
+      - "traefik.docker.network=traefik-network"
+
+  web-api:
+    build:
+      context: .
+      dockerfile: ./Dockerfile.backend
+    expose:
+      - 3000
+    volumes:
+      - ./data:/app/data:rw
+      - ./static:/app/static:rw
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web-api.rule=(Host(`api.wasa-photo.lucaronca.it`) && PathPrefix(`/v1`))"
+      - "traefik.http.routers.web-api.entrypoints=websecure"
+      - "traefik.http.routers.web-api.tls=true"
+      - "traefik.http.routers.web-api.tls.certresolver=myresolver"
+      - "traefik.http.middlewares.web-api-stripprefix.stripprefix.prefixes=/v1"
+      - "traefik.http.routers.web-api.middlewares=web-api-stripprefix@docker"
+      - "traefik.http.services.web-api.loadbalancer.server.port=3000"
+
+  static-photos:
+    image: nginx
+    volumes:
+      - ./static/photos:/usr/share/nginx/html:ro
+
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.static-photos.rule=(Host(`static.wasa-photo.lucaronca.it`) && PathPrefix(`/assets/photos`))"
+      - "traefik.http.routers.static-photos.entrypoints=websecure"
+      - "traefik.http.routers.static-photos.tls=true"
+      - "traefik.http.routers.static-photos.tls.certresolver=myresolver"
+      - "traefik.http.middlewares.static-photos-stripprefix.stripprefix.prefixes=/assets/photos"
+      - "traefik.http.routers.static-photos.middlewares=static-photos-stripprefix@docker"
+      - "traefik.http.services.static-photos.loadbalancer.server.port=80"
+
+  web-ui:
+    build:
+      context: .
+      dockerfile: ./Dockerfile.frontend
+      args:
+        # - APP_BASE_PATH=/
+        - API_URL=https://api.wasa-photo.lucaronca.it/v1/
+        - STATIC_FILES_URL=https://static.wasa-photo.lucaronca.it
+
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.web-ui.rule=(Host(`app.wasa-photo.lucaronca.it`) || Host(`wasa-photo.lucaronca.it`))"
+      - "traefik.http.routers.web-ui.priority=1"
+      - "traefik.http.routers.web-ui.entrypoints=websecure"
+      - "traefik.http.routers.web-ui.tls=true"
+      - "traefik.http.routers.web-ui.tls.certresolver=myresolver"

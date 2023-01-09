@@ -3,7 +3,7 @@ provider "aws" {
 }
 
 module "ec2-setup" {
-  source = "github.com/lucaronca/ec2-setup?ref=v0.0.2"
+  source = "github.com/lucaronca/ec2-setup?ref=v0.0.4"
   ami = {
     name  = "amzn2-ami-kernel-5.10-hvm-2.0.20221210.1-x86_64-gp2"
     owner = "137112412989"
@@ -13,7 +13,7 @@ module "ec2-setup" {
     environment = "DEV"
     os          = "AMAZON-LINUX"
   }
-  allow_tls = false
+  allow_tls = true
 }
 
 output "instance_id" {

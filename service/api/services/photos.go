@@ -259,7 +259,7 @@ func (s *photosService) CreatePhoto(userId int, photo io.Reader) (*models.Photo,
 		// Save photo asset
 		NewJob(func(sendRes SendFunc) {
 			// Open a new file with specific permissions to append bytes to it
-			file, err := os.OpenFile(photoFilePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+			file, err := os.OpenFile(photoFilePath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 			if err != nil {
 				sendRes(nil, err)
 			}
